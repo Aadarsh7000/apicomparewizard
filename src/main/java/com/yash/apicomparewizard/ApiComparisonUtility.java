@@ -17,6 +17,7 @@ public class ApiComparisonUtility {
 		String oldUrl = config.getProperty("old_api_url");
 		String newUrl = config.getProperty("new_api_url");
 		String outputExcel = config.getProperty("output_excel_path");
+		String uniqueField = config.getProperty("uniqueField");
 		String[] fields = config.getArrayProperty("fields_to_compare", ",");
 		List<String> fieldsToCompare = Arrays.asList(fields);
 		// Load path variables and query parameters
@@ -55,7 +56,7 @@ public class ApiComparisonUtility {
 				String newResponse = ApiRequestHandler.sendRequest(finalNewUrl, method, requestBody);
 				long endTimeNew = System.currentTimeMillis();
 				long timeTakenNew = endTimeNew - startTimeNew;
-				List<String> mismatches = ResponseComparator.compareResponses(oldResponse, newResponse, fieldsToCompare);
+				List<String> mismatches = ResponseComparator.compareResponses(oldResponse, newResponse, fieldsToCompare,uniqueField);
 				String sheetName = jsonFile.getName().replace(".json", "");
 				excelWriter.writeToExcel(mismatches, timeTakenOld, timeTakenNew,sheetName);
 			}
@@ -63,16 +64,20 @@ public class ApiComparisonUtility {
 
 		long startTimeOld = System.currentTimeMillis();
 		String oldResponse = ApiRequestHandler.sendRequest(finalOldUrl, method, null);
+//		System.out.println("oldResponse"+oldResponse);
 		long endTimeOld = System.currentTimeMillis();
 		long timeTakenOld = endTimeOld - startTimeOld;
 
 		long startTimeNew = System.currentTimeMillis();
 		String newResponse = ApiRequestHandler.sendRequest(finalNewUrl, method, null);
+		System.out.println("oldres"+oldResponse);
+		System.out.println("newResponse"+newResponse);
 		long endTimeNew = System.currentTimeMillis();
 		long timeTakenNew = endTimeNew - startTimeNew;
 		
 		
-		List<String> mismatches = ResponseComparator.compareResponses(oldResponse, newResponse, fieldsToCompare);
+		List<String> mismatches = ResponseComparator.compareResponses(oldResponse, newResponse, fieldsToCompare,uniqueField);
+		System.out.println("mismatch"+mismatches);
 		excelWriter.writeToExcel(mismatches, timeTakenOld, timeTakenNew,"Comparison_Output");
 		}
 		excelWriter.close();		
