@@ -1,35 +1,34 @@
 package com.yash.apicomparewizard;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import org.apache.hc.client5.http.fluent.Request;
-import org.apache.hc.core5.http.ClassicHttpResponse;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 
 public class ApiRequestHandler {
-    public static String sendRequest(String url, String method, String requestBody) throws IOException, ParseException {
+    private static final HttpClient httpClient = HttpClient.newHttpClient();
 
-        ClassicHttpResponse response;
+    public static String sendRequest(String url, String method, String requestBody) throws IOException, InterruptedException {
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(url));
+
         switch (method.toUpperCase()) {
             case "POST":
-                response = (ClassicHttpResponse) Request.post(url)
-                        .bodyString(requestBody, org.apache.hc.core5.http.ContentType.APPLICATION_JSON)
-                        .execute()
-                        .returnResponse();
+                requestBuilder.POST(HttpRequest.BodyPublishers.ofString(requestBody));
                 break;
             case "PUT":
-                response = (ClassicHttpResponse) Request.put(url)
-                        .bodyString(requestBody, org.apache.hc.core5.http.ContentType.APPLICATION_JSON)
-                        .execute()
-                        .returnResponse();
+                requestBuilder.PUT(HttpRequest.BodyPublishers.ofString(requestBody));
                 break;
             case "GET":
             default:
-                response = (ClassicHttpResponse) Request.get(url).execute().returnResponse();
+                requestBuilder.GET();
                 break;
         }
-        return EntityUtils.toString(response.getEntity());
+
+        HttpRequest request = requestBuilder.build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        return response.body();
     }
 }
