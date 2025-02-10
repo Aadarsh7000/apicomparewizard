@@ -52,7 +52,7 @@ public class ExcelWriter {
 	    dataStyle.setBorderTop(BorderStyle.THIN);
 	    dataStyle.setBorderLeft(BorderStyle.THIN);
 	    dataStyle.setBorderRight(BorderStyle.THIN);
-	    dataStyle.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER); 
+	    dataStyle.setAlignment(org.apache.poi.ss.usermodel.HorizontalAlignment.CENTER);
 
 	    Row titleRow = sheet.createRow(0);
 	    Cell titleCell = titleRow.createCell(0);
@@ -66,21 +66,25 @@ public class ExcelWriter {
 
 	    headerRow.createCell(1).setCellValue("Unique Field");
 	    headerRow.getCell(1).setCellStyle(headerStyle);
-
-	    headerRow.createCell(2).setCellValue("Mismatch Field");
-	    headerRow.getCell(2).setCellStyle(headerStyle);
 	    
-	    headerRow.createCell(3).setCellValue("Old Value");
+	    headerRow.createCell(2).setCellValue("Difference Type");
+	    headerRow.getCell(2).setCellStyle(headerStyle);
+
+
+	    headerRow.createCell(3).setCellValue("Mismatch Field");
 	    headerRow.getCell(3).setCellStyle(headerStyle);
 	    
-	    headerRow.createCell(4).setCellValue("New Value");
+	    headerRow.createCell(4).setCellValue("Old Value");
 	    headerRow.getCell(4).setCellStyle(headerStyle);
-
-	    headerRow.createCell(5).setCellValue("Old API Response Time");
+	    
+	    headerRow.createCell(5).setCellValue("New Value");
 	    headerRow.getCell(5).setCellStyle(headerStyle);
 
-	    headerRow.createCell(6).setCellValue("New API Response Time");
+	    headerRow.createCell(6).setCellValue("Old API Response Time");
 	    headerRow.getCell(6).setCellStyle(headerStyle);
+
+	    headerRow.createCell(7).setCellValue("New API Response Time");
+	    headerRow.getCell(7).setCellStyle(headerStyle);
 
 	    int rowIndex = 2; 
 	    for (Map<String, String> mismatch : mismatches) {
@@ -97,32 +101,35 @@ public class ExcelWriter {
 	            cell3.setCellValue(splitValues[0]); 
 	            cell3.setCellStyle(dataStyle);
 	            Cell cell4 = row.createCell(3);
-	            cell4.setCellValue(splitValues[1].replace("*",",")); 
+	            cell4.setCellValue(splitValues[1]); 
 	            cell4.setCellStyle(dataStyle);
 	            Cell cell5 = row.createCell(4);
 	            cell5.setCellValue(splitValues[2].replace("*",",")); 
 	            cell5.setCellStyle(dataStyle);
+	            Cell cell6 = row.createCell(5);
+	            cell6.setCellValue(splitValues[3].replace("*",",")); 
+	            cell6.setCellStyle(dataStyle);
 	        }
 	    }
 
 	    int numberOfMismatches = mismatches.size();
 	    if (numberOfMismatches == 1) {
 	        Row singleMismatchRow = sheet.getRow(2); 
-	        singleMismatchRow.createCell(5).setCellValue(timeTakenOld + " ms");
-	        singleMismatchRow.createCell(6).setCellValue(timeTakenNew + " ms");
-	        singleMismatchRow.getCell(5).setCellStyle(dataStyle);
+	        singleMismatchRow.createCell(6).setCellValue(timeTakenOld + " ms");
+	        singleMismatchRow.createCell(7).setCellValue(timeTakenNew + " ms");
 	        singleMismatchRow.getCell(6).setCellStyle(dataStyle);
+	        singleMismatchRow.getCell(7).setCellStyle(dataStyle);
 	    } else if (numberOfMismatches > 1) {
 	        Row firstMismatchRow = sheet.getRow(2);
-	        Cell oldApiCell = firstMismatchRow.createCell(5);
+	        Cell oldApiCell = firstMismatchRow.createCell(6);
 	        oldApiCell.setCellValue(timeTakenOld + " ms");
 	        oldApiCell.setCellStyle(dataStyle);
-	        sheet.addMergedRegion(new CellRangeAddress(2, 2 + mismatches.size() - 1, 5, 5));
+	        sheet.addMergedRegion(new CellRangeAddress(2, 2 + mismatches.size() - 1, 6, 6));
 
-	        Cell newApiCell = firstMismatchRow.createCell(6);
+	        Cell newApiCell = firstMismatchRow.createCell(7);
 	        newApiCell.setCellValue(timeTakenNew + " ms");
 	        newApiCell.setCellStyle(dataStyle);
-	        sheet.addMergedRegion(new CellRangeAddress(2, 2 + numberOfMismatches - 1, 6, 6));
+	        sheet.addMergedRegion(new CellRangeAddress(2, 2 + numberOfMismatches - 1, 7, 7));
 	    }
 
 	    // Write to file

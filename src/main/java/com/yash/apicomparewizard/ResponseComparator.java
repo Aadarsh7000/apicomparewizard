@@ -1,5 +1,7 @@
 package com.yash.apicomparewizard;
 
+import static net.javacrumbs.jsonunit.JsonAssert.assertJsonEquals;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,10 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import net.javacrumbs.jsonunit.core.Configuration;
 import net.javacrumbs.jsonunit.core.Option;
-
-import static net.javacrumbs.jsonunit.JsonAssert.assertJsonEquals;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import net.javacrumbs.jsonunit.core.listener.Difference;
 
 
 public class ResponseComparator {
@@ -26,6 +25,7 @@ public class ResponseComparator {
         JsonNode newJsonNode = objectMapper.readTree(newResponse);
 
         if (oldJsonNode.isArray() && newJsonNode.isArray()) {
+        	
 
             List<Map<String, Object>> oldList = parseJsonToList(oldResponse);
             List<Map<String, Object>> newList = parseJsonToList(newResponse);
@@ -34,153 +34,108 @@ public class ResponseComparator {
             }
             Map<Object, Map<String, Object>> oldMap = createMapByUniqueField(oldList, uniqueField);
             Map<Object, Map<String, Object>> newMap = createMapByUniqueField(newList, uniqueField);
-
-            Configuration config = Configuration.empty()
-                    .withOptions(Option.IGNORING_ARRAY_ORDER);
             for (Object key : oldMap.keySet()) {
+            	   CustomDifferenceListener listener = new CustomDifferenceListener();
+                   
+                   Configuration config = Configuration.empty()
+                           .withOptions(Option.IGNORING_ARRAY_ORDER).withDifferenceListener(listener);
+                
                 if (newMap.containsKey(key)) {
                     try {
                         assertJsonEquals(objectMapper.writeValueAsString(oldMap.get(key)),
-                                         objectMapper.writeValueAsString(newMap.get(key)),
-                                         config);
-                    } catch (AssertionError e) {
-                        String errorMessage = e.getMessage();
-                        if (errorMessage.startsWith("JSON documents are different:")) {
-                            errorMessage = errorMessage.substring("JSON documents are different:".length()).trim();
-                        }
-                        String[] differences = errorMessage.split("\\n");
-                        for (String difference : differences) {
-                            if (!difference.trim().isEmpty()) { 
-                                Map<String, String> mismatch = new HashMap<>();
-                            
-                                if (difference.contains("has different length") && difference.startsWith("Array") || difference.startsWith("Different value found when comparing expected array element")) {
-                                    continue;
-                                }
-                                else if (difference.contains("Missing values") || difference.contains("extra values")) {
-                                    String regex = "Array \"(.*?)\" has different content. Missing values: (.*), extra values: (.*), expected: <\\[(.*?)\\]> but was: <\\[(.*?)\\]>";
-                                    Pattern pattern = Pattern.compile(regex);
-                                    Matcher matcher = pattern.matcher(difference);
-                                    if (matcher.find()) {
-                                        String fieldName = matcher.group(1);
-                                        String expectedValues = matcher.group(4);
-                                        String actualValues = matcher.group(5);
-                                        String combined = fieldName + "," + expectedValues.replace(",","*") + "," + actualValues.replace(",","*");
-                                        mismatch.put(key.toString(), combined);
-                                    }
-								} else if (difference.contains("Different keys found in node")){
-                                	 String regex = "Different keys found in node \".*?\", missing: \"(.*?)\", expected: <(.*?)> but was: <(.*?)>";
-                                     Pattern pattern = Pattern.compile(regex);
-                                     Matcher matcher = pattern.matcher(errorMessage);
+                                objectMapper.writeValueAsString(newMap.get(key)),
+                                config);
+                    } catch (AssertionError e) {	
+                    	List<Difference> diff=listener.getDifferences();
+       				for (Difference difference : diff) {
+							  Map<String, String> mismatch = new HashMap<>();
+							if(difference.getType().toString()== "DIFFERENT") {
+								  String type=difference.getType().toString();
+								  String fieldName = difference.getExpectedPath();
+                                  String expectedValues = difference.getExpected().toString();
+                                  String actualValues = difference.getActual().toString();
+                                  String combined = type+","+ fieldName + "," + expectedValues.replace(",", "*") + ","
+										+ actualValues.replace(",", "*");
+								mismatch.put(key.toString(), combined);
+							} else if (difference.getType().toString() == "MISSING") {
+								String type = difference.getType().toString();
+								String fieldName = difference.getExpectedPath();
+								String expectedValues = difference.getExpected().toString();
+								String combined = type + "," + fieldName + "," + expectedValues.replace(",", "*") + ","+"Not Present";
+								mismatch.put(key.toString(), combined);
+							} else if (difference.getType().toString() == "EXTRA") {
+								String type = difference.getType().toString();
+								String fieldName = difference.getActualPath();
+								String actualValues = difference.getActual().toString();
+								String combined = type + "," + fieldName + "," + "Not Present" + ","+ actualValues.replace(",", "*");
+								mismatch.put(key.toString(), combined);
+							}
+							mismatches.add(mismatch);
+						}
+					}
 
-                                     if (matcher.find()) {
-                                         String fieldName = matcher.group(1);
-                                         String expectedValue = matcher.group(2);
-                                         String actualValue = matcher.group(3);
-                              
-                                        String combined = fieldName + "," + expectedValue.replace(",","*") + "," + actualValue.replace(",","*");
-                                        mismatch.put(key.toString(), combined);
-                                    }
-                                	
-                                } else {
-                                    String regex = "Different value found in node \"(.*?)\", expected: <\"(.*?)\"> but was: <\"(.*?)\">";
-                                    Pattern pattern = Pattern.compile(regex);
-                                    Matcher matcher = pattern.matcher(difference);
-                                    if (matcher.find()) {
-                                        String fieldName = matcher.group(1);
-                                        String oldValue = matcher.group(2);
-                                        String newValue = matcher.group(3);
-                                        String combined = fieldName + "," + oldValue.replace(",", "*") + "," + newValue.replace(",", "*");
-                                        mismatch.put(key.toString(), combined);
-                                    }
-                                }
-                                mismatches.add(mismatch);
-                            }
-                        }
-                    }
-                } else {
-                    Map<String, String> mismatch = new HashMap<>();
-                    mismatch.put( key.toString(), "Missing in new response: " + oldMap.get(key));
-                    mismatches.add(mismatch);
-                }
-            }
+				} else {
+					Map<String, String> mismatch = new HashMap<>();
+					mismatch.put(key.toString(), "Missing in new response: " + oldMap.get(key));
+					mismatches.add(mismatch);
 
-        } else {
-            Configuration config = Configuration.empty()
-                    .withOptions(Option.IGNORING_ARRAY_ORDER);
-            try {
-                assertJsonEquals(oldResponse, newResponse, config);
-            } catch (AssertionError e) {
-                String errorMessage = e.getMessage();
-                if (errorMessage.startsWith("JSON documents are different:")) {
-                    // Remove the prefix
-                    errorMessage = errorMessage.substring("JSON documents are different:".length()).trim();
-                }
-                String[] differences = errorMessage.split("\\n");
-                for (String difference : differences) {
-                    if (!difference.trim().isEmpty()) { 
-                        Map<String, String> mismatch = new HashMap<>();
-                        if (difference.contains("has different length") && difference.startsWith("Array") || difference.startsWith("Different value found when comparing expected array element")) {
-                            continue;
-                        }
-                        // Check for missing or extra values
-                        else if (difference.contains("Missing values") || difference.contains("extra values")) {
-                            String regex = "Array \"(.*?)\" has different content. Missing values: (.*), extra values: (.*), expected: <\\[(.*?)\\]> but was: <\\[(.*?)\\]>";
-                            Pattern pattern = Pattern.compile(regex);
-                            Matcher matcher = pattern.matcher(difference);
-                            if (matcher.find()) {
-                                String fieldName = matcher.group(1);
-                                String expectedValues = matcher.group(4);
-                                String actualValues = matcher.group(5);
-                                String combined = fieldName + "," + expectedValues.replace(",","*") + "," + actualValues.replace(",","*");
-                                mismatch.put("Overall mismatch", combined);
-                            }
-						} else if (difference.contains("Different keys found in node")){
-                        	 String regex = "Different keys found in node \".*?\", missing: \"(.*?)\", expected: <(.*?)> but was: <(.*?)>";
-                             Pattern pattern = Pattern.compile(regex);
-                             Matcher matcher = pattern.matcher(errorMessage);
+				}
 
-                             if (matcher.find()) {
-                                 String fieldName = matcher.group(1);
-                                 String expectedValue = matcher.group(2);
-                                 String actualValue = matcher.group(3);
-                      
-                                String combined = fieldName + "," + expectedValue.replace(",","*") + "," + actualValue.replace(",","*");
-                                mismatch.put("Overall mismatch", combined);
-                            }
-                        	
-                        } else {
-                            String regex = "Different value found in node \"(.*?)\", expected: <\"(.*?)\"> but was: <\"(.*?)\">";
-                            Pattern pattern = Pattern.compile(regex);
-                            Matcher matcher = pattern.matcher(difference);
-                            if (matcher.find()) {
-                                String fieldName = matcher.group(1);
-                                String oldValue = matcher.group(2);
-                                String newValue = matcher.group(3);
-                                String combined = fieldName + "," + oldValue.replace(",", "*") + "," + newValue.replace(",", "*");
-                                mismatch.put("Overall mismatch", combined);
-                            }
-                        }
-                        mismatches.add(mismatch);
-                    }
-                }
-            }
-        }
+			}
 
-        return mismatches;
-    }
-    
-    private static List<Map<String, Object>> parseJsonToList(String json) throws Exception {
-        return objectMapper.readValue(json, objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
-    }
+		} else {
+			CustomDifferenceListener listener = new CustomDifferenceListener();
+			Configuration config = Configuration.empty().withOptions(Option.IGNORING_ARRAY_ORDER)
+					.withDifferenceListener(listener);
+			try {
+				assertJsonEquals(oldResponse, newResponse, config);
+			} catch (AssertionError e) {
+				List<Difference> diff=listener.getDifferences();
+   				for (Difference difference : diff) {
+						  Map<String, String> mismatch = new HashMap<>();
+						if(difference.getType().toString()== "DIFFERENT") {
+							String type=difference.getType().toString();
+							String fieldName = difference.getExpectedPath();
+                            String expectedValues = difference.getExpected().toString();
+                            String actualValues = difference.getActual().toString();
+                            String combined = type+","+ fieldName + "," + expectedValues.replace(",", "*") + ","
+									+ actualValues.replace(",", "*");
+							mismatch.put("Overall Mismatch", combined);
+						} else if (difference.getType().toString() == "MISSING") {
+							String type = difference.getType().toString();
+							String fieldName = difference.getExpectedPath();
+							String expectedValues = difference.getExpected().toString();
+							String combined = type + "," + fieldName + "," + expectedValues.replace(",", "*") + ","+ "Not Present";
+							mismatch.put("Overall Mismatch", combined);
+						} else if (difference.getType().toString() == "EXTRA") {
+							String type = difference.getType().toString();
+							String fieldName = difference.getActualPath();
+							String actualValues = difference.getActual().toString();
+							String combined = type + "," + fieldName + "," + "Not Present" + ","+ actualValues.replace(",", "*");
+							mismatch.put("Overall Mismatch", combined);
+						}
+						mismatches.add(mismatch);
+					}
+			}
+		}
 
-    private static Map<Object, Map<String, Object>> createMapByUniqueField(List<Map<String, Object>> list, String uniqueField) {
-        Map<Object, Map<String, Object>> map = new HashMap<>();
-        for (Map<String, Object> item : list) {
-            Object key = item.get(uniqueField);
-            if (key != null) {
-                map.put(key, item);
-            }
-        }
-        return map;
-    }
+		return mismatches;
+	}
+
+	private static List<Map<String, Object>> parseJsonToList(String json) throws Exception {
+		return objectMapper.readValue(json,
+				objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
+	}
+
+	private static Map<Object, Map<String, Object>> createMapByUniqueField(List<Map<String, Object>> list,
+			String uniqueField) {
+		Map<Object, Map<String, Object>> map = new HashMap<>();
+		for (Map<String, Object> item : list) {
+			Object key = item.get(uniqueField);
+			if (key != null) {
+				map.put(key, item);
+			}
+		}
+		return map;
+	}
 }
